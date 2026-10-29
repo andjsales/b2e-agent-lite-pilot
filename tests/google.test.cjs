@@ -1,0 +1,24 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const {validate,rowForLead}=require('../lib/lead.cjs');
+const {appendLead}=require('../lib/google-sheets.cjs');
+const testLead={eventId:'demo-bmw',leadId:'DEMO-GOOGLE-ABC123',firstName:'Jordan',lastName:'Sample',email:'jordan.sample@example.com',phone:'202-555-0148',zip:'10001',currentVehicle:'Honda Civic',vehicleInterest:'X5',purchaseTimeline:'Within 3 months',vehicleCondition:'New',staffInitials:'AS',notes:'Fictional',shareConsent:true,followupRequested:true,isDemo:true,sessionSeconds:14};
+test('Google Sheets OAuth, duplicate lookup, and append request are constructed correctly',async()=>{
+ const {privateKey}=crypto.generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{format:'pem',type:'pkcs8'},publicKeyEncoding:{format:'pem',type:'spki'}});
+ const env={GOOGLE_SPREADSHEET_ID:'1mxBlgn_hS-vfljMtdAnlIGcH_2udey7lMKVVB2yTgxs',GOOGLE_SERVICE_ACCOUNT_JSON:JSON.stringify({client_email:'pilot@test-project.iam.gserviceaccount.com',private_key:privateKey}),MOCK_SHEETS:'0'};
+ const calls=[];
+ const fetcher=async(url,options={})=>{calls.push({url,options});
+  if(url==='https://oauth2.googleapis.com/token') return {ok:true,json:async()=>({access_token:'fake-token'})};
+  if(url.includes('B2%3AB')) return {ok:true,json:async()=>({range:'Leads!B2:B',values:[]})};
+  if(url.includes('A1%3AV:append')) return {ok:true,json:async()=>({updates:{updatedRows:1}})};
+  throw new Error('Unexpected URL '+url);
+ };
+ const lead=validate(testLead),row=rowForLead(lead),result=await appendLead(lead,null,row,{env,fetcher});
+ assert.equal(result.ok,true);assert.equal(result.duplicate,false);assert.equal(calls.length,3);
+ assert.equal(calls[1].options.headers.Authorization,'Bearer fake-token');
+ assert.equal(calls[2].options.method,'POST');
+ assert.match(calls[2].url, /:append\?valueInputOption=RAW/);
+ assert.equal(JSON.parse(calls[2].options.body).values[0].length,22);
+});
