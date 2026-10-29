@@ -13,12 +13,12 @@ module.exports=async function handler(req,res){
    let input=req.body;
    if(typeof input==='string'){if(Buffer.byteLength(input)>14000)return json(res,413,{ok:false,message:'Lead payload is too large.'});input=JSON.parse(input);}
    if(!input||Buffer.byteLength(JSON.stringify(input))>14000)return json(res,413,{ok:false,message:'Lead payload is too large.'});
-   const lead=validate(input),row=rowForLead(lead),result=await appendLead(lead,null,row);
+   const lead=validate(input),row=rowForLead(lead),result=await appendLead(lead,null,row,{oidcToken:req.headers['x-vercel-oidc-token']});
    return json(res,200,result);
  }catch(error){
    if(error instanceof SyntaxError)return json(res,400,{ok:false,message:'Invalid JSON.'});
    if(error.status===400)return json(res,400,{ok:false,message:error.message});
    console.error('AGENT Lite demo save failed:',error.message); // Never log lead data or credentials.
-   return json(res,503,{ok:false,message:'Could not save to Google Sheets. Check service account access, spreadsheet setup and server configuration.'});
+   return json(res,503,{ok:false,message:'Could not save to Google Sheets. Check Workload Identity Federation, spreadsheet sharing and server configuration.'});
  }
 };
